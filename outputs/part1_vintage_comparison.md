@@ -1,6 +1,6 @@
 # Part 1: Vintage Comparison — 2024 vs 2026
 
-> ## ⚠️ Critical finding — do not switch vintages without reading this
+> ## Critical finding — do not switch vintages without reading this
 >
 > Our fusion pipeline pulls specific pieces of ARIMA data by name (things
 > like "table VV_HOV" or "table VV_SHR") and assumes those names always

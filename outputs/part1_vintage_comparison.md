@@ -50,7 +50,7 @@ rrima-snowflake/CA_2024H2/` — a Snowflake unload
 
 ### Documented prior claim (history — superseded, not confirmed)
 
-CLAUDE.md originally recorded: *"old 2024 200K files reportedly have zero ID
+The originally recorded: *"old 2024 200K files reportedly have zero ID
 overlap with 2026 intact-survey shards, but DO overlap with 2026 `dem/`
 files."* This was **not verified** — it was a prior/expert expectation to be
 checked, per the project's own agent instructions. Investigation below found

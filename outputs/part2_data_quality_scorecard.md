@@ -108,16 +108,25 @@ standard as every prior ID-based join this session):**
 |---|---|---|---|
 | 3.1 | Novo: `novo_arima_simulated_200k` vs. `all417_decoded` | Age band exact match rate = 100.0000% (n=200,000); gender is a perfect bijection (zero crossover) | **PASS — confirmed trustworthy** |
 | 3.2 | Intact: `intact_arima_sim_200k` vs. `intact_population_200k` | Perfect gender bijection (96,917/96,917, 103,083/103,083, zero crossover) | **PASS** |
-| 3.3 | Intact: `intact_arima_sim_200k` vs. `intact_vv_200k` | Flat gender split (~51%/49% either way); age correlation r=0.0061 | **FAIL — blocked** |
+| 3.3 | Intact: `intact_arima_sim_200k` vs. `intact_vv_200k` | Flat gender split (~51%/49% either way); age correlation r=0.0061 | **FAIL — `intact_vv_200k` unusable** (see resolution below — this file specifically is not the fix) |
+| 3.3b | Intact (corrected linkage): `intact_arima_sim_200k`'s `id + 1` vs. `arrima-snowflake/CA_2024H2`'s own `VV_*` tables | Perfect gender bijection (96,917/103,083, zero crossover, same split as 3.2); 100.0000% GEO/postal-code exact match (n=200,000); clean, non-crossing age-band diagonal, Spearman r=0.978 vs. `AGENUM` | **PASS — RESOLVED 2026-09-21** |
 
 **Root cause of 3.3, traced specifically:** `intact_vv_200k` sits in an
 independently-generated ID space from the other two Intact tables — it is
 not simply the general `all417` pull mislabeled either (only 0.57% raw ID
-overlap with `all417`, and no signal even within that sliver). No
-`VV_*` lifestyle file currently available is ID-linked to the Intact
-simulation, so **no Intact-side correlation was computed** — doing so
-would silently mix unrelated individuals, the same failure mode
-documented in Part 1.2, now found within a client-facing deliverable.
+overlap with `all417`, and no signal even within that sliver). `intact_vv_200k`
+itself remains unusable and this finding stands.
+
+**Resolution (2026-09-21):** a corrected linkage was found and verified
+independently, to the same standard as every other ID-based join in this
+project (gender bijection + GEO/age spot-check, not raw ID overlap — see
+3.3b above and `notebooks/part2_task3_simulation_coherence.ipynb`'s "UPDATE"
+cells in Part A). It has nothing to do with `intact_vv_200k`:
+**`intact_arima_sim_200k`'s `id` column, offset by `+1`, links directly to
+`arrima-snowflake/CA_2024H2`'s own `VV_*` tables** — the same 2024H2 bucket
+used throughout Part 1, not the `arima-clustering-pipeline` bucket
+`intact_vv_200k` came from. This unblocks Intact-side correlation work; see
+Part D below.
 
 **Part B — Novo (8 pairs, n≈200,000): 0/8 pairs OK, all flagged.**
 Variables verified against the 2024H2 dictionary and, for `Q19 (KGS)`,
@@ -198,6 +207,69 @@ by mechanism rather than being uniformly near-zero — but it is still
 bounded by what ARIMA's own simulation already contains, whether that's
 strong, weak, or (in one case) wrong-signed.
 
+**Part D — Intact (corrected, 6 pairs, n up to 200,000):** now that 3.3 is
+resolved (3.3b above), this repeats Part B's exercise for Intact using the
+`id + 1` linkage to `CA_2024H2`'s `VV_*` tables.
+
+**Variable-meaning confirmation:** Intact's own `Q10`–`Q58` survey columns
+have no data dictionary anywhere in this project's usual sources (checked:
+local files, both GCS buckets used elsewhere in this project — including
+`code/`, `dashboards/`, `dec_results/` — and `~/reference/arima_fusion`).
+One was located externally — `data/intact_datamap/Azimut_template_mapped_TopLevel_only.xlsx`
+— but its own README describes it as a **dashboard-to-template crosswalk,
+not a native survey codebook**, and it labels its Q-variable rows
+`'2026 Survey'`, a different vintage than the 2024H2 data this simulation
+links to. Given that, it was checked for internal consistency before being
+trusted: 128/157 (81.5%) of Intact's `Q`-variables show an exact
+category-count match against what's actually observed in
+`intact_arima_sim_200k`; most of the 29 discrepancies are explainable as
+dashboard-side binning of continuous/count variables (e.g. `Q16r*`, `Q31`,
+`Q34`, `Q58r*`), not real content drift. Two genuine gaps treated as
+unconfirmed: `Q41` (only exists as a nested grid in the real data, not the
+flat item the datamap lists) and `Q44` (no question text at all in the
+datamap). Separately: **this datamap never gives an explicit numeric
+code→label order**, only category content/counts — so for binary items,
+direction was independently cross-validated against a known anchor (e.g.
+`Q18` "has driver's licence": code 1 dominates and rises with age,
+consistent with code 1 = Yes at an 82.6% rate); for 5-point Likert/attitude
+batteries (`Q33`, `Q35`, `Q37`, `Q40`, `Q57`, etc.) no such anchor exists,
+so **Part D is restricted to binary, count, and continuous variables with
+independently confirmed direction** — Likert pairs are excluded from this
+pass rather than risk a wrong-direction verdict built on a guessed code
+order.
+
+| # | Pair | n | Spearman r | Expected | Status |
+|---|---|---|---|---|---|
+| 3.18 | `VV_AUU_1` (Hhld. Auto Is Covered, CA_2024H2 via `id+1`) × `Q17r1`–`r5` (owns/leases any car type, Intact) | 177,214 | **0.0079** | + | **WARNING — essentially zero (household-level vs. personal-level variable; some gap may reflect real multi-person-household effects, not purely an ARIMA artifact — see caveat below)** |
+| 3.19 | `VV_HOV_6` (# children <18, CA_2024H2 via `id+1`) × `Q48r4` (life event: birth of a child, last 12mo) | 200,000 | 0.1054 | + | **PASS** |
+| 3.20 | `AGENUM` × `Q18` (has valid driver's licence) | 200,000 | 0.1420 | + | **PASS** |
+| 3.21 | `AGENUM` × `Q12` (owns primary residence) | 200,000 | 0.1740 | + | **PASS** |
+| 3.22 | `Q48r5` (life event: purchased a car, last 12mo) × `Q31` (# quotes obtained at last shopping) | 200,000 | 0.0483 | + | **PASS (weak)** |
+| 3.23 | `VV_HOV_6` (# children <18, CA_2024H2 via `id+1`) × `Q48r7` (life event: child/spouse obtained driver's licence) | 200,000 | 0.0487 | + | **PASS (weak)** |
+
+**Verdict on 3.18–3.23: 5/6 correctly signed; 3.18 is the standout.**
+Demographic gradients (3.20, 3.21) hold up well, consistent with Task 2's
+general pattern. **3.18 is the main reason this fix mattered**: household
+auto insurance coverage (from genuinely-linked CA_2024H2 data) vs. owning
+or leasing any car type comes back at **r≈0.008 — essentially zero**. The
+row-normalized crosstab confirms this isn't a rare-category artifact: 77.1%
+of car owners are insured vs. 75.9% of non-owners — barely any difference.
+This is the same "logical-necessity variables collapse toward
+independence" pattern Task 2 flagged for `vv_aut_1` × vehicle ownership
+(r=0.014, checks 2.1–2.3 area) — except that finding was on a linkage never
+confirmed reliable, while 3.18 is on data independently verified above
+(perfect gender bijection, 100% GEO match). **Caveat:** `VV_AUU_1` is a
+household-level variable and `Q17r*` is asked at the personal level ("cars
+**you** currently own"), so some of this gap could reflect other household
+members owning/insuring a car this respondent doesn't personally hold — a
+real feature of multi-person households, not necessarily an ARIMA
+artifact. That confound wasn't present in Task 2's original (both
+household-level) pair, so 3.18 should be read as *consistent with, not a
+clean replication of* Task 2's finding. 3.19/3.22/3.23 (cross-domain and
+behaviour-behaviour pairs) are correctly signed but modest, which is itself
+expected given the timeframe/level mismatches involved (a standing
+household attribute vs. a specific last-12-months event).
+
 ## Task 4 — Missingness audit
 
 | # | Check | n | Observed | Expectation | Status | Notes |
@@ -206,6 +278,60 @@ strong, weak, or (in one case) wrong-signed.
 | 4.2 | Sparse domains (variables with blank/non-response rate > 50%) | 10,943 variables (exact, full-population, via `variable_mapping_2026.csv`'s `national_count`) | 1,869 variables (17%) exceed 50% blank; 104 tables have ≥50% of their own variables over that threshold | N/A — exploratory flag | **WARNING** | Mostly plausible niche/low-incidence content (e.g. specific regional newspapers, specific TV shows, city-specific transit sub-questions) — checked variable descriptions directly to confirm this rather than assume it. Not evidence of broken data on its own, but these variables carry little signal and should be deprioritized or excluded in Task 2's correlation-pair selection. |
 | 4.3 | Fully unpopulated (100.000000% blank) individual variables | 10,943 variables checked | Exactly 5 variables, in only 2 tables (`vv_puc`, `vv_shp` — both otherwise well-populated): `vv_puc_60`, `vv_puc_64`, `vv_puc_68`, `vv_puc_83`, `vv_shp_17` | Should be rare/near-zero | **WARNING (narrow)** | Likely dead/unused sub-options (e.g. a specific city's transit "never used" sub-code, a residual "Other" shopping category) rather than a structural defect — both host tables are otherwise healthy. An earlier pass overstated this as "15 tables 100% blank across every variable," which was a misreading of a per-table aggregate statistic (fraction of a table's variables exceeding the 50% threshold, not the table's actual blank rate); corrected here after re-checking the real per-variable numbers directly. |
 | 4.4 | Constant-column detection: dictionary vs. real files | 10,943 variables (dictionary) vs. 10,937 columns (409-table file scan, 1 shard each) | Dictionary flags 0 constant variables; direct file scan flags 69 | Should broadly agree | **WARNING** | 0/69 agreement — the variable dictionary's category list reflects the *possible* answer set, not the *observed* distribution, so it cannot be relied on alone to find practically-constant (zero-variance) variables. Relevant to Task 2: these 69 columns should be excluded from correlation analysis (undefined/zero correlation for a constant variable) using the file-scan result, not the dictionary. |
+
+### Detail for 4.3 — the 5 fully-blank (100.000000%) variables, with contrast
+
+Pulled directly from `data/variable_mapping_2026.csv`'s `description` field (literal text, not paraphrased), with `blank_pct` recomputed fresh from the same `national_count`-based method as 4.2/4.3 (summing blank-labeled categories' `national_count` over the variable's total, n=33,597,827 throughout — the full 2026 population, not a sample):
+
+| Variable ID | Table | Description | Blank % |
+|---|---|---|---|
+| `vv_puc_60` | `vv_puc` | When Last time used (Ottawa) - Never used | 100.0000% |
+| `vv_puc_64` | `vv_puc` | When Last time used (Calgary) - Never used | 100.0000% |
+| `vv_puc_68` | `vv_puc` | When Last time used (Edmonton) - Never used | 100.0000% |
+| `vv_puc_83` | `vv_puc` | Number of Times Boarded Last Day (Vancouver CMA) - The West Coast Express | 100.0000% |
+| `vv_shp_17` | `vv_shp` | Categories Shop Most Often - Other | 100.0000% |
+
+**Contrast — other variables in the same two tables, for the "otherwise well-populated" claim in 4.3:**
+
+| Variable ID | Table | Description | Blank % |
+|---|---|---|---|
+| `vv_puc_1` | `vv_puc` | When Last time used (Toronto CMA) - Yesterday - TTC Subway | 0.0000% |
+| `vv_puc_57` | `vv_puc` | When Last time used (Ottawa) - Yesterday | 99.9617% |
+| `vv_puc_91` | `vv_puc` | When Last time used Bus - Summary | 90.6646% |
+| `vv_puc_93` | `vv_puc` | When Last time used - Yesterday | 0.0000% |
+| `vv_shp_1` | `vv_shp` | $ Spent Online Past Month | 34.5945% |
+| `vv_shp_11` | `vv_shp` | Categories Shop Most Often - Groceries | 26.0034% |
+| `vv_shp_65` | `vv_shp` | How Often Shop Online | 14.8894% |
+| `vv_shp_93` | `vv_shp` | Purchase Method Personally Used - Credit Card | 0.0000% |
+
+`vv_puc` (Public Transit Usage) is a 100-variable table structured as repeated city-by-mode-by-recency batteries (Toronto/Montreal/Vancouver/Ottawa/Calgary/Edmonton × subway/bus/LRT/etc. × yesterday/past week/longer ago/never used). Its fully-populated variables (0.0000% blank, e.g. `vv_puc_1`, `vv_puc_93`) are the higher-level "when last used" summary items everyone answers; `vv_puc_60`/`vv_puc_64`/`vv_puc_68` are the "never used" sub-code specifically for three smaller-transit-system cities (Ottawa/Calgary/Edmonton) — a residual bucket that this synthetic population simply never assigns anyone to, alongside `vv_puc_57`-`vv_puc_59` (same three cities' other recency codes) sitting at 99.9%+ blank, not 100% — confirming this is a gradient of rarity, not a single broken table. `vv_shp` (Shopping) is a 100-variable table mixing well-populated purchase-method/event flags (0.0000% blank, e.g. `vv_shp_93`, purchase method used) with sparser "shop most often" category picks (`vv_shp_1`, `vv_shp_11`); `vv_shp_17` ("Other" shopping category) is the one true zero within that mix — again a residual catch-all bucket, not evidence the table itself is unpopulated.
+
+### Detail for 4.2 — representative sample of >50%-blank variables (18 of 1,869), literal descriptions
+
+Stratified sample spanning the full blank-rate range (50.5%-99.97%) and 18 distinct tables (of the 233 tables that contain at least one >50%-blank variable), drawn from `data/variable_mapping_2026.csv`'s literal `description` field rather than paraphrased into categories. Confirms the category-level pattern claimed in 4.2 (regional newspapers, niche magazines, specific TV shows, city-specific transit sub-questions) with citable, verbatim examples:
+
+| Variable ID | Table | Description | Blank % |
+|---|---|---|---|
+| `vv_mah1_86` | `vv_mah1` | CAA Saskatchewan - Devices Used to Access Sometimes | 99.9712% |
+| `vv_daj2_96` | `vv_daj2` | The Windsor Star - How Last Weekday Issue Obtained | 99.7773% |
+| `vv_daj1_70` | `vv_daj1` | The Edmonton Sun - Time Spent with Last Saturday Issue (in min) | 99.6072% |
+| `vv_dai8_66` | `vv_dai8` | The Standard - Time Spent On Last Day (in min) | 99.4451% |
+| `vv_mai1_22` | `vv_mai1` | Les Idees de ma Maison - # of Occasions Read a Typical Issue | 99.1447% |
+| `vv_dai11_15` | `vv_dai11` | Winnipeg Free Press - How Often Access Publication's Digital Content | 98.8471% |
+| `vv_weg1_30` | `vv_weg1` | French - Personally Watched on Any Screen/Device per Month - NCIS (S+) | 98.2282% |
+| `vv_mai1_9` | `vv_mai1` | Hello! Canada - Percentage Read | 97.5015% |
+| `vv_mai1_74` | `vv_mai1` | Zoomer Magazine - Percentage Read | 96.7730% |
+| `vv_dam1_48` | `vv_dam1` | When Last Time Action Taken - Recommended the advertised product/brand/service | 95.8308% |
+| `vv_tvc_64` | `vv_tvc` | English - Personally Watch on Any Screen/Any Device Per Week - National Geographic | 94.2990% |
+| `vv_fly_13` | `vv_fly` | How Often Personally Use Print/Digital to Plan/Make Purchases - Sports Equipment | 92.3955% |
+| `vv_cox_2` | `vv_cox` | Formats personally use - Others Sometimes | 89.6371% |
+| `vv_out1_23` | `vv_out1` | When Last Time Action Taken - Downloaded Coupon | 84.8701% |
+| `vv_res_26` | `vv_res` | Type of Food Used Past 30 Days - Ice Cream | 79.7042% |
+| `vv_but_4` | `vv_but` | Equipment/Distribution:  Shipping/Transportation/Distribution Services/Construction | 74.1293% |
+| `vv_inz_64` | `vv_inz` | Online Activities by Device Past 30 Days - Watched Long Form Videos(Longer than 21 min) | 64.4288% |
+| `vv_lot_26` | `vv_lot` | $ Spent/Average Month | 50.5391% |
+
+Sample drawn by taking every ~104th row (evenly spaced by rank) of the 1,778 >50%-blank variables outside `vv_puc`/`vv_shp` (already detailed above), sorted descending by blank %, so the sample spans the full range rather than clustering at either extreme. Full 1,869-row list is reproducible from `data/variable_mapping_2026.csv` via the method in `notebooks/part2_task4_missingness.ipynb`, not attached in full here to keep this document a readable size.
 
 No fixes applied to the underlying data anywhere in this scorecard — every
 row reports an observed result, not a correction.

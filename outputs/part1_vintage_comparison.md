@@ -192,12 +192,22 @@ Of those 332 **same-named** tables, a description-set overlap check
 (Jaccard similarity of each table's variable descriptions between the two
 vintages) found:
 
-**164 of 332 (49%) have a self-similarity of exactly 0.0** — the same
+**130 of 332 (39%) have a self-similarity of exactly 0.0** — the same
 `table_id` refers to entirely different survey content in 2026 than it did
 in 2024H2. This is not a formatting artifact: many of these tables have a
 **perfect 1.000-similarity match to a differently-named table** in the
 other vintage, which would not happen if the mismatch were just inconsistent
 text formatting.
+
+> **Correction (2026-09-22):** earlier drafts of this report, and the
+> cross-reference in `CLAUDE.md`, stated this count as "164 (49%)." That
+> number was wrong — re-derived directly from both vintages' source
+> dictionaries (`data/CA_2024H2/VARIABLE_MAPPING/`,
+> `data/variable_mapping_2026.csv`) and cross-checked against the
+> already-cached `data/part1_1_table_self_similarity.csv`, both independent
+> computations agree on **130**, not 164. The underlying finding
+> (a large share of same-named tables hold unrelated content across
+> vintages) is unchanged; only the count was corrected.
 
 **Concrete example — `vv_hov` / `vv_how`:**
 
@@ -210,28 +220,186 @@ between vintages, while both table_ids continued to exist, now holding
 unrelated content. This is a rename-plus-reuse pattern, not a simple
 addition/removal.
 
-**Other confirmed examples (table_id → best-matching differently-named
-table, by description overlap):**
+**Complete remapping (all 130 flagged tables) — updated 2026-09-22:**
+for each of the 130 tables with self-similarity 0.0, this ran the same
+best-match search (Jaccard similarity of variable descriptions) against
+**all 411 2026 tables**, not a demonstration subset. Confidence is flagged
+per row, since a "1.000 Jaccard" from a 1-2-variable table is much weaker
+evidence than a "1.000 Jaccard" from a 20-variable table.
 
-| 2024H2 table_id | 2026 table_id | Jaccard |
-|---|---|---|
-| `vv_con` | `vv_coo` | 1.000 |
-| `vv_mob` | `vv_mod` | 1.000 |
-| `vv_cat` | `vv_cav` | 1.000 |
-| `vv_cou` | `vv_cow` | 1.000 |
-| `vv_cow` | `vv_con` | 1.000 |
-| `vv_tra` | `vv_trd` | 1.000 |
-| `vv_den` | `vv_dep` | 1.000 |
-| `vv_for` | `vv_fot` | 1.000 |
-| `vv_hou` | `vv_hox` | 0.840 |
-| `vv_ono` | `vv_onn` | 0.933 |
-| `vv_cog` | `vv_cof` | 0.911 |
-| `vv_rea` | `vv_reb` | 0.800 |
-| `vv_dal1` | `vv_dai3` | 0.567 |
+**Read this as two different kinds of result, not one scale of
+"confidence" — the trustworthy rows and the unreliable rows are answering
+different questions:**
 
-Note the non-bijective pattern (`vv_con`→`vv_coo` but `vv_cow`→`vv_con`):
-table_ids were reassigned in a way that isn't a clean 1:1 rename mapping,
-which rules out a simple "find-and-replace the table prefix" fix.
+**Trustworthy — treat these as usable findings:**
+
+- **HIGH (76 tables):** unique best match, ≥5 shared descriptions, ≥0.5
+  Jaccard — a confident content-move match. Safe to cite "content moved
+  from X to Y" for these.
+- **NO MATCH — likely genuinely removed (4 tables):** `vv_cry`, `vv_tvc`,
+  `vv_tvs`, `vv_wef` — best Jaccard against *any* of the 411 2026 tables is
+  0.0 (the nominal "best match" is the `all`/`loc` administrative sentinel
+  row, which is not a real content match). **This is just as trustworthy
+  as a HIGH match, not a weaker version of one — it's a confirmed negative
+  result** (checked against all 411 candidates and none overlap at all),
+  not a guess. Unlike the other 126 tables, these show no evidence their
+  content moved anywhere; they look genuinely discontinued, not renamed.
+
+**Not reliable for content tracing — treat only as "this table's content
+is gone under its old name," nothing more:**
+
+- **LOW (41 tables):** either the best match is tied with a second
+  candidate at the identical score (11 tables — genuinely ambiguous, the
+  search cannot distinguish which is right), or the match rests on fewer
+  than 5 shared description strings (30 tables — a 1.000 score here can be
+  a coincidental match on generic wording, e.g. two unrelated
+  single-variable tables that happen to share one description string).
+  **Do not treat the "best-matching 2026 `table_id`" listed for these rows
+  as where the content actually went** — the only thing confirmed is that
+  the 2024H2 table's content no longer exists under its 2024H2 name; the
+  destination is unknown with confidence, and the listed candidate may
+  simply be the least-wrong guess among many weak options.
+- **MODERATE (9 tables):** a real but partial overlap (0.2-0.5 Jaccard) —
+  plausible as a lead worth manually checking, but not a confirmed match
+  on its own; sits between the two tiers above rather than in either.
+
+Note the non-bijective pattern among the HIGH matches (`vv_con`→`vv_coo`
+but `vv_cow`→`vv_con`; `vv_hou`→`vv_hox` but `vv_hox`→`vv_hou`): table_ids
+were reassigned in a way that isn't a clean 1:1 rename mapping, which
+rules out a simple "find-and-replace the table prefix" fix.
+
+| 2024H2 `table_id` | Best-matching 2026 `table_id` | Jaccard | Confidence |
+|---|---|---|---|
+| `vv_air` | `vv_ais` | 0.800 | HIGH |
+| `vv_ais` | `vv_air` | 1.000 | HIGH |
+| `vv_all` | `vv_alm` | 1.000 | HIGH |
+| `vv_alm` | `vv_all` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_aut` | `vv_auw` | 0.978 | HIGH |
+| `vv_auu` | `vv_aut` | 1.000 | HIGH |
+| `vv_auw` | `vv_auv` | 1.000 | HIGH |
+| `vv_bus` | `vv_buu` | 1.000 | HIGH |
+| `vv_buu` | `vv_buv` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_buv` | `vv_bus` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_cas` | `vv_cat` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_cat` | `vv_cav` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_cau` | `vv_cas` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_che` | `vv_chf` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_chf` | `vv_che` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_chi` | `vv_acn` | 1.000 | LOW -- tied with another candidate |
+| `vv_chj` | `vv_chi` | 1.000 | HIGH |
+| `vv_cho` | `vv_chp` | 1.000 | HIGH |
+| `vv_chp` | `vv_cho` | 0.800 | HIGH |
+| `vv_cof` | `vv_cog` | 0.200 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_cog` | `vv_cof` | 0.911 | HIGH |
+| `vv_col` | `vv_com` | 0.761 | HIGH |
+| `vv_com` | `vv_cop` | 1.000 | HIGH |
+| `vv_con` | `vv_coo` | 1.000 | HIGH |
+| `vv_coo` | `vv_coq` | 1.000 | HIGH |
+| `vv_cop` | `vv_cos` | 1.000 | HIGH |
+| `vv_cor` | `vv_cou` | 1.000 | HIGH |
+| `vv_cos` | `vv_cov` | 0.920 | HIGH |
+| `vv_cou` | `vv_cow` | 1.000 | HIGH |
+| `vv_cov` | `vv_cox` | 0.273 | MODERATE -- partial content overlap only |
+| `vv_cow` | `vv_con` | 1.000 | HIGH |
+| `vv_cox` | `vv_bou` | 1.000 | LOW -- tied with another candidate |
+| `vv_cre` | `vv_crg` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_cry` | `all` | 0.000 | NO MATCH -- likely removed |
+| `vv_dai` | `vv_dam` | 0.392 | MODERATE -- partial content overlap only |
+| `vv_dai1` | `vv_dam` | 0.331 | MODERATE -- partial content overlap only |
+| `vv_daj3` | `vv_daj` | 0.340 | MODERATE -- partial content overlap only |
+| `vv_dal` | `vv_dai2` | 0.316 | MODERATE -- partial content overlap only |
+| `vv_dal1` | `vv_dai3` | 0.567 | HIGH |
+| `vv_den` | `vv_dep` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_dep` | `vv_deq` | 1.000 | HIGH |
+| `vv_dog` | `vv_doh` | 1.000 | HIGH |
+| `vv_doh` | `vv_dog` | 1.000 | HIGH |
+| `vv_ele` | `vv_elf` | 0.871 | HIGH |
+| `vv_elf` | `vv_ele` | 1.000 | HIGH |
+| `vv_faf` | `vv_fae` | 1.000 | HIGH |
+| `vv_fin` | `vv_fio` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_fio` | `vv_fin` | 1.000 | HIGH |
+| `vv_fla` | `vv_flb` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_flb` | `vv_fla` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_foo` | `vv_for` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_fop` | `vv_fos` | 1.000 | LOW -- tied with another candidate |
+| `vv_for` | `vv_fot` | 1.000 | HIGH |
+| `vv_frr` | `vv_bat` | 1.000 | LOW -- tied with another candidate |
+| `vv_hom` | `vv_hoq` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_hon` | `vv_hor` | 1.000 | HIGH |
+| `vv_hop` | `vv_hoo` | 1.000 | HIGH |
+| `vv_hou` | `vv_hox` | 0.840 | HIGH |
+| `vv_hov` | `vv_how` | 1.000 | HIGH |
+| `vv_how` | `vv_hon` | 1.000 | HIGH |
+| `vv_hox` | `vv_hou` | 0.978 | HIGH |
+| `vv_ice` | `vv_icf` | 0.755 | HIGH |
+| `vv_icf` | `vv_ice` | 1.000 | HIGH |
+| `vv_int` | `vv_inz` | 0.496 | MODERATE -- partial content overlap only |
+| `vv_inu` | `vv_int` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_inv` | `vv_inu` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_inw` | `vv_inx` | 1.000 | LOW -- tied with another candidate |
+| `vv_inz` | `vv_inx` | 1.000 | LOW -- tied with another candidate |
+| `vv_lei` | `vv_lek` | 0.667 | HIGH |
+| `vv_lei1` | `vv_lek1` | 0.655 | HIGH |
+| `vv_lif` | `vv_lig` | 0.925 | HIGH |
+| `vv_lig` | `vv_lif` | 1.000 | HIGH |
+| `vv_mag` | `vv_mal` | 0.947 | HIGH |
+| `vv_mah` | `vv_mag` | 1.000 | HIGH |
+| `vv_maj` | `vv_mai` | 0.538 | HIGH |
+| `vv_mak` | `vv_man` | 1.000 | HIGH |
+| `vv_mam` | `vv_mah` | 0.351 | MODERATE -- partial content overlap only |
+| `vv_mar` | `vv_mas` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_mas` | `vv_mat` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_mat` | `vv_mau` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_mau` | `vv_mar` | 1.000 | HIGH |
+| `vv_mea` | `vv_meb` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_meb` | `vv_mea` | 1.000 | HIGH |
+| `vv_men` | `vv_fos` | 1.000 | LOW -- tied with another candidate |
+| `vv_meo` | `vv_men` | 1.000 | HIGH |
+| `vv_mob` | `vv_mod` | 1.000 | HIGH |
+| `vv_moc` | `vv_mob` | 0.667 | HIGH |
+| `vv_nai` | `vv_han` | 1.000 | LOW -- tied with another candidate |
+| `vv_naj` | `vv_nai` | 1.000 | HIGH |
+| `vv_nex` | `vv_mak` | 1.000 | LOW -- tied with another candidate |
+| `vv_non` | `vv_noo` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_noo` | `vv_non` | 0.571 | HIGH |
+| `vv_onl` | `vv_ono` | 1.000 | HIGH |
+| `vv_onm` | `vv_onl` | 1.000 | HIGH |
+| `vv_ono` | `vv_onn` | 0.933 | HIGH |
+| `vv_oth` | `vv_oti` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_oti` | `vv_oth` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_pas` | `vv_pam` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_pat` | `vv_pas` | 1.000 | HIGH |
+| `vv_pes` | `vv_peu` | 1.000 | HIGH |
+| `vv_pet` | `vv_pew` | 0.833 | HIGH |
+| `vv_peu` | `vv_pes` | 1.000 | HIGH |
+| `vv_pew` | `vv_pev` | 1.000 | HIGH |
+| `vv_plb` | `vv_plc` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_prf` | `vv_prg` | 1.000 | LOW -- tied with another candidate |
+| `vv_pri` | `vv_prj` | 0.200 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_prj` | `vv_pri` | 1.000 | HIGH |
+| `vv_pro` | `vv_prp` | 1.000 | HIGH |
+| `vv_prp` | `vv_pro` | 0.312 | MODERATE -- partial content overlap only |
+| `vv_pub` | `vv_puc` | 0.600 | HIGH |
+| `vv_puc` | `vv_pub` | 0.950 | HIGH |
+| `vv_rad` | `vv_raf` | 1.000 | HIGH |
+| `vv_rae` | `vv_rad` | 0.942 | HIGH |
+| `vv_rea` | `vv_reb` | 0.800 | HIGH |
+| `vv_reb` | `vv_rea` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_sal` | `vv_eye` | 1.000 | LOW -- tied with another candidate |
+| `vv_sho` | `vv_shp` | 0.183 | MODERATE -- partial content overlap only |
+| `vv_shp` | `vv_shq` | 1.000 | LOW -- small description set (n<5), match may be coincidental |
+| `vv_spo` | `vv_spq` | 0.667 | HIGH |
+| `vv_spp` | `vv_spo` | 0.559 | HIGH |
+| `vv_spr` | `vv_spp` | 1.000 | HIGH |
+| `vv_tra` | `vv_trd` | 1.000 | HIGH |
+| `vv_trb` | `vv_trc` | 1.000 | HIGH |
+| `vv_trd` | `vv_trb` | 1.000 | HIGH |
+| `vv_tvc` | `all` | 0.000 | NO MATCH -- likely removed |
+| `vv_tvs` | `all` | 0.000 | NO MATCH -- likely removed |
+| `vv_vei` | `vv_vek` | 1.000 | HIGH |
+| `vv_vek` | `vv_vej` | 0.764 | HIGH |
+| `vv_wee` | `vv_wef` | 1.000 | HIGH |
+| `vv_wef` | `all` | 0.000 | NO MATCH -- likely removed |
 
 **Not every table is affected.** Spot-checked against the specific tables
 this project's fusion pipeline hardcodes (see "Consequence" below):
@@ -279,10 +447,13 @@ content-mapping problem, not an identifier problem.
   reasonable assumption given the descriptions are human-readable variable
   labels, not IDs, but not a substitute for full column-value verification
   of every table (only spot-checked, not exhaustive).
-- Did not exhaustively verify every one of the 164 flagged tables' new
-  location — the "best match" search (by Jaccard against all 411 2026
-  tables) was run for a subset (15) as a demonstration of the pattern, not
-  a complete remapping table.
+- **Updated 2026-09-22: the "best match" search (Jaccard against all 411
+  2026 tables) has now been run for all 130 flagged tables** — see the
+  complete remapping table above, not a demonstration subset. Best-match
+  confidence still varies by row (flagged inline): a 1.000 Jaccard from a
+  1-2-variable table is materially weaker evidence than one from a
+  20-variable table, and this was not resolved by running the search
+  exhaustively — only by scoring more tables the same, imperfect way.
 
 ## Part 1.4 — Variable mapping diff (2024H2 vs. 2026)
 
@@ -310,6 +481,73 @@ content-mapping problem, not an identifier problem.
   already depend on it being stable, which this confirms. Category drift
   for other shared variables was not exhaustively checked and should not be
   assumed absent.
+
+### Domain clustering of added/removed tables — by `theme`
+
+Grouped the 85 only-2024H2 tables by their 2024H2 `THEME` field, and the
+79 only-2026 tables by their 2026 `theme` field, to check whether table
+churn is spread evenly across content domains or concentrated in a few.
+
+**85 only-2024H2 tables (content dropped between vintages), by theme:**
+
+| Theme | Count | % of 85 |
+|---|---|---|
+| Media Usage | 42 | 49.4% |
+| Shopping | 22 | 25.9% |
+| Characteristics/Views | 7 | 8.2% |
+| Lifestyle | 5 | 5.9% |
+| Health and Wellness | 4 | 4.7% |
+| Home | 3 | 3.5% |
+| Professional Life | 1 | 1.2% |
+| Food and Drinks | 1 | 1.2% |
+| **Total** | **85** | **100.0%** |
+
+**79 only-2026 tables (new content added between vintages), by theme:**
+
+| Theme | Count | % of 79 |
+|---|---|---|
+| Media Usage | 36 | 45.6% |
+| Shopping | 13 | 16.5% |
+| Health and Wellness | 10 | 12.7% |
+| Lifestyle | 7 | 8.9% |
+| Professional Life | 4 | 5.1% |
+| Characteristics/Views | 2 | 2.5% |
+| Food and Drinks | 2 | 2.5% |
+| Home | 2 | 2.5% |
+| Location | 1 | 1.3% |
+| Segments | 1 | 1.3% |
+| `all` (no theme — population-total administrative sentinel, not real content) | 1 | 1.3% |
+| **Total** | **79** | **100.0%** |
+
+**Both directions cluster heavily in the same two domains: Media Usage and
+Shopping.** Media Usage accounts for 42/85 (49.4%) of dropped tables and
+36/79 (45.6%) of added tables; Shopping accounts for 22/85 (25.9%) dropped
+and 13/79 (16.5%) added. Together these two themes are 64/85 (75.3%) of
+what was dropped and 49/79 (62.0%) of what was added — table churn is not
+evenly spread across ARIMA's content domains, it's concentrated in the same
+two areas on both sides of the vintage change. This is consistent with Part
+1.1's finding that content *within* Media Usage/Shopping tables was itself
+heavily restructured, not just added/removed wholesale: `vv_dai` and
+`vv_maj` (newspaper/magazine batteries) and `vv_shp`/`vv_puc` (shopping and
+transit batteries) all appear directly in Part 1.1's 130-table remap list
+above (self-similarity 0.0 -- same table_id, different content across
+vintages), on top of the wholesale add/remove churn counted here. The two
+findings point at the same underlying area of the schema being in the most
+flux between vintages, via two different mechanisms (tables renamed/reused,
+and whole sub-tables added or dropped).
+
+Two of the only-2026 tables (`loc`, `pri`) are themselves non-`VV_` structural
+dimension tables (geography and population-segment lookups, per Part 1.1's
+"3 non-VV administrative entries" note), not new survey content — they land
+under `Location` and `Segments` respectively (1 each) and are noted here so
+they aren't mistaken for genuinely new content domains.
+
+**Methodological note:** `theme` is a per-variable field in both
+dictionaries; this used each table's single theme value directly since none
+of these specific 165 tables (85+79) span more than one theme (2 tables
+elsewhere in the dictionary do — `vv_cog`/`vv_tea` in 2024H2, `vv_cof`/`vv_tea`
+in 2026 — but neither is in the only-2024/only-2026 sets, so this doesn't
+affect the counts above).
 
 ### Conclusion
 
@@ -393,7 +631,7 @@ are close to meaningless for judging a real effect at this n.
 none. All 46 are a new finding, not a rediscovery.** Every one of these 46
 variables belongs to one of the 6 tables Part 1.1 explicitly confirmed at
 self-similarity = 1.000 (re-verified again at the top of this notebook,
-independently). Part 1.1's 164-table "unstable" list is a **table-level**
+independently). Part 1.1's 130-table "unstable" list is a **table-level**
 description-overlap check; it says nothing about whether a table's
 individual variables kept the same *response scale* (category/value
 structure) across vintages. This notebook checks that different, narrower

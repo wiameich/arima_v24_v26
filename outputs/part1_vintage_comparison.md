@@ -482,6 +482,73 @@ content-mapping problem, not an identifier problem.
   for other shared variables was not exhaustively checked and should not be
   assumed absent.
 
+### Domain clustering of added/removed tables — by `theme`
+
+Grouped the 85 only-2024H2 tables by their 2024H2 `THEME` field, and the
+79 only-2026 tables by their 2026 `theme` field, to check whether table
+churn is spread evenly across content domains or concentrated in a few.
+
+**85 only-2024H2 tables (content dropped between vintages), by theme:**
+
+| Theme | Count | % of 85 |
+|---|---|---|
+| Media Usage | 42 | 49.4% |
+| Shopping | 22 | 25.9% |
+| Characteristics/Views | 7 | 8.2% |
+| Lifestyle | 5 | 5.9% |
+| Health and Wellness | 4 | 4.7% |
+| Home | 3 | 3.5% |
+| Professional Life | 1 | 1.2% |
+| Food and Drinks | 1 | 1.2% |
+| **Total** | **85** | **100.0%** |
+
+**79 only-2026 tables (new content added between vintages), by theme:**
+
+| Theme | Count | % of 79 |
+|---|---|---|
+| Media Usage | 36 | 45.6% |
+| Shopping | 13 | 16.5% |
+| Health and Wellness | 10 | 12.7% |
+| Lifestyle | 7 | 8.9% |
+| Professional Life | 4 | 5.1% |
+| Characteristics/Views | 2 | 2.5% |
+| Food and Drinks | 2 | 2.5% |
+| Home | 2 | 2.5% |
+| Location | 1 | 1.3% |
+| Segments | 1 | 1.3% |
+| `all` (no theme — population-total administrative sentinel, not real content) | 1 | 1.3% |
+| **Total** | **79** | **100.0%** |
+
+**Both directions cluster heavily in the same two domains: Media Usage and
+Shopping.** Media Usage accounts for 42/85 (49.4%) of dropped tables and
+36/79 (45.6%) of added tables; Shopping accounts for 22/85 (25.9%) dropped
+and 13/79 (16.5%) added. Together these two themes are 64/85 (75.3%) of
+what was dropped and 49/79 (62.0%) of what was added — table churn is not
+evenly spread across ARIMA's content domains, it's concentrated in the same
+two areas on both sides of the vintage change. This is consistent with Part
+1.1's finding that content *within* Media Usage/Shopping tables was itself
+heavily restructured, not just added/removed wholesale: `vv_dai` and
+`vv_maj` (newspaper/magazine batteries) and `vv_shp`/`vv_puc` (shopping and
+transit batteries) all appear directly in Part 1.1's 130-table remap list
+above (self-similarity 0.0 -- same table_id, different content across
+vintages), on top of the wholesale add/remove churn counted here. The two
+findings point at the same underlying area of the schema being in the most
+flux between vintages, via two different mechanisms (tables renamed/reused,
+and whole sub-tables added or dropped).
+
+Two of the only-2026 tables (`loc`, `pri`) are themselves non-`VV_` structural
+dimension tables (geography and population-segment lookups, per Part 1.1's
+"3 non-VV administrative entries" note), not new survey content — they land
+under `Location` and `Segments` respectively (1 each) and are noted here so
+they aren't mistaken for genuinely new content domains.
+
+**Methodological note:** `theme` is a per-variable field in both
+dictionaries; this used each table's single theme value directly since none
+of these specific 165 tables (85+79) span more than one theme (2 tables
+elsewhere in the dictionary do — `vv_cog`/`vv_tea` in 2024H2, `vv_cof`/`vv_tea`
+in 2026 — but neither is in the only-2024/only-2026 sets, so this doesn't
+affect the counts above).
+
 ### Conclusion
 
 The 2024→2026 vintage change is **not** a simple additive schema evolution

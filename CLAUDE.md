@@ -1,38 +1,51 @@
 # ARIMA Vintage Comparison & Data Quality Audit
 
-## 🔴 ACTIVE BLOCKER — Intact expert-priors fusion (2026-09-15)
+## ✅ RESOLVED — Intact expert-priors fusion blocker (opened 2026-09-15, resolved 2026-09-21)
 
-**`intact_vv_200k.parquet`'s ID space does not link to
-`intact_arima_sim_200k.parquet` or `intact_population_200k.parquet`.**
+**Original problem:** `intact_vv_200k.parquet`'s ID space did not link to
+`intact_arima_sim_200k.parquet` or `intact_population_200k.parquet`.
 Verified via attribute spot-check (Part 2 Task 3, Part A — see
 `outputs/part2_data_quality_scorecard.md` checks 3.1-3.3 for the full
 trace): gender crosstab between `intact_arima_sim_200k` and `intact_vv_200k`
-is statistically flat (~51%/49% either way, not a real linkage), vs. a
+was statistically flat (~51%/49% either way, not a real linkage), vs. a
 perfect bijection between `intact_arima_sim_200k` and
-`intact_population_200k`. `intact_vv_200k` is not simply the general
+`intact_population_200k`. `intact_vv_200k` was not simply the general
 `all417` pull mislabeled either (only 0.57% raw ID overlap there).
 
-**Why this matters beyond Task 3 itself:**
+**Why this mattered beyond Task 3 itself:**
 `~/reference/arima_fusion/doc/expert_priors_methodology.md` describes the
 extended copula as conditioning jointly on `[shared + VV_auxiliary]` to
 embed cross-domain correlations into the Intact fusion. That precondition
 requires `VV_` auxiliary data to be row-linkable to the same individuals
-as the survey/population data. With `intact_vv_200k` broken, **this
-precondition does not currently hold for Intact** — any expert-priors
-fusion work for Intact that uses `intact_vv_200k` as-is is drawing on
-lifestyle data for the wrong people.
+as the survey/population data.
 
-**Status: diagnosis in progress, not yet fixed.** Root cause,
-generation-script provenance, and the exact fix (most likely: re-pull
-`intact_vv_200k` filtered to `intact_population_200k`'s existing 200K ID
-list rather than an independent sample) are still being investigated as
-of this entry. **This should be resolved, and this note updated with the
-before/after ID-overlap numbers, before any further Intact expert-priors
-fusion work proceeds** — independent of whether the rest of Part 2/3 is
-finished. Whoever owns the Intact fusion pipeline should treat any
-existing `intact_fused_hybrid.parquet`/`intact_fused_sync.parquet`
-output built from the current `intact_vv_200k` as suspect until this is
-resolved and those steps are re-run on corrected data.
+**Resolution (2026-09-21):** the fix was **not** the originally-guessed
+re-pull of `intact_vv_200k` — that file remains a dead end (it sits in an
+independently-generated ID space unrelated to the other two Intact files,
+and is not simply a mislabeled `all417` pull; this diagnosis stands as
+documented above). The actual fix: **`intact_arima_sim_200k`'s `id`
+column, offset by `+1`, links directly to `arrima-snowflake/CA_2024H2`'s
+own `VV_*` tables** — the same 2024H2 bucket used throughout Part 1 of
+this project, not the `arima-clustering-pipeline` bucket `intact_vv_200k`
+came from. Verified independently (not taken on assertion), to the same
+standard used for every ID-based join in this project — attribute
+spot-check, not raw ID overlap:
+
+| Check | Before (`intact_vv_200k`) | After (`id + 1` → `CA_2024H2` `VV_*`) |
+|---|---|---|
+| Gender crosstab | Flat, ~51%/49% either way (no real linkage) | Perfect bijection, zero crossover (96,917 / 103,083 — identical split to the confirmed `intact_population_200k` link) |
+| GEO / postal code | Not checked (no meaningful linkage to check) | 100.0000% exact match (n=200,000) |
+| Age correlation | r=0.0061 (near-zero) | r=0.978 vs. `AGENUM`, clean non-crossing age-band diagonal |
+
+Full trace, code, and the resulting Intact correlation pairs (Part D) are
+in `notebooks/part2_task3_simulation_coherence.ipynb` (Part A "UPDATE" +
+Part D) and `outputs/part2_data_quality_scorecard.md` (checks 3.3b,
+3.18-3.23). **Any existing `intact_fused_hybrid.parquet` /
+`intact_fused_sync.parquet` output built from the old `intact_vv_200k`
+linkage remains suspect and should be re-run using the corrected `id + 1`
+→ `CA_2024H2` `VV_*` linkage** — this resolution unblocks that work but
+does not retroactively fix output already produced under the broken
+linkage.
 
 ## Context
 We fuse Novo Nordisk/Intact client survey data onto ARIMA's synthetic population.
@@ -175,14 +188,19 @@ row identity; this one is about what a table/variable *means*).
 
 - Evidence: comparing the 2024H2 and 2026 official variable dictionaries
   (`VARIABLE_MAPPING`), of 332 table_ids present by name in both vintages,
-  **164 (49%) have zero content overlap** (Jaccard similarity of variable
+  **130 (39%) have zero content overlap** (Jaccard similarity of variable
   descriptions = 0.0) — the same table_id holds unrelated content in each
-  vintage. Many of these have a **perfect 1.000-similarity match to a
-  differently-named table** in the other vintage (e.g. 2024H2 `vv_hov`
-  "Presence Of Children <18" content moved to 2026 `vv_how`, while `vv_hov`
-  in 2026 now means spray-bottle purchases). The remapping is **not a clean
-  1:1 rename** (e.g. `vv_con`→`vv_coo` but `vv_cow`→`vv_con`), so a simple
-  find-and-replace table-prefix fix will not work.
+  vintage. (Corrected 2026-09-22: this was originally recorded as "164
+  (49%)," which was wrong — re-derived independently from both source
+  dictionaries and confirmed against the cached self-similarity data; see
+  `outputs/part1_vintage_comparison.md` Part 1.1 for the correction note
+  and the full 130-table remapping.) Many of these have a **perfect
+  1.000-similarity match to a differently-named table** in the other
+  vintage (e.g. 2024H2 `vv_hov` "Presence Of Children <18" content moved to
+  2026 `vv_how`, while `vv_hov` in 2026 now means spray-bottle purchases).
+  The remapping is **not a clean 1:1 rename** (e.g. `vv_con`→`vv_coo` but
+  `vv_cow`→`vv_con`), so a simple find-and-replace table-prefix fix will not
+  work.
 - Not universal: `vv_dem`, `vv_res`, `vv_lux` (and presumably others not yet
   checked) are fully stable (1.000 similarity). Category-level values are
   also stable where checked (`vv_dem_1` age brackets are byte-identical).

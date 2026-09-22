@@ -60,22 +60,33 @@ hard ceiling on what's achievable for these kinds of variables.
 - **Full detail:** `outputs/part2_data_quality_scorecard.md`, Task 2
   ("VV_ cross-correlation audit"), check 2.12.
 
-## 4. Active blocker: Intact's lifestyle survey data can't currently be matched to Intact's simulated survey data by person — this needs to be fixed before more Intact expert-priors work proceeds
+## 4. Resolved: Intact's lifestyle survey data can now be matched to Intact's simulated survey data by person — and once matched, it shows the same near-zero pattern as finding #3
 
 Our expert-priors fusion approach for Intact assumes we can line up a
 person's lifestyle answers with their simulated survey answers, row by
-row. Right now that's not true: splitting by gender should produce a
-clean separation if the rows really were the same people, but instead it
-comes out close to a 50/50 coin flip either way — a strong sign the two
-files describe different, unrelated sets of people. **Any expert-priors
-output already produced for Intact using this file should be treated as
-unreliable until this is resolved.** Likely fix: re-pull the lifestyle
-data filtered to the same 200K people already used elsewhere in the
-Intact pipeline, rather than as an independent sample — not yet done.
+row. That was blocked: the specific lifestyle file we were using
+(`intact_vv_200k`) turned out to describe a different, unrelated set of
+people — splitting by gender came out close to a 50/50 coin flip instead
+of a clean separation. **That file remains unusable**, but a different,
+correct way to make the match was found and independently verified: a
+simple `+1` offset on the simulated survey's row numbers lines it up with
+ARIMA's own 2024 lifestyle tables — confirmed with a perfect gender
+split, a 100% exact match on postal code, and a near-perfect age match,
+across all 200,000 people.
+
+With that fixed, we could finally run the same kind of check as finding
+#3 on Intact's own data — and got the same headline result: **household
+car-insurance coverage vs. actually owning a car came back at r ≈ 0.008,
+essentially zero**, for a relationship that should be close to a logical
+necessity. This isn't a new, isolated problem — it's the same pattern
+from finding #3, now confirmed a second time on independently-verified
+data. **Any expert-priors output already produced for Intact using the
+old `intact_vv_200k` file should still be treated as unreliable and
+re-run using the corrected match.**
 
 - **Full detail:** `outputs/part2_data_quality_scorecard.md`, Task 3 Part
-  A, check 3.3 ("Root cause of 3.3"); also flagged as the active blocker
-  note at the top of `CLAUDE.md`.
+  A, checks 3.3/3.3b ("Resolution"), and Part D, checks 3.18–3.23; also
+  updated at the top of `CLAUDE.md`.
 - **Figures:** none generated for this specific check.
 
 ---

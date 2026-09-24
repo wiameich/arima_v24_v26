@@ -335,3 +335,182 @@ Sample drawn by taking every ~104th row (evenly spaced by rank) of the 1,778 >50
 
 No fixes applied to the underlying data anywhere in this scorecard — every
 row reports an observed result, not a correction.
+
+## Task 2/3 Follow-up — Mutual Information, Subgroup, and Joint-Dependence Analysis
+
+Three follow-up analyses requested on top of Task 2's VV_ cross-correlation
+audit and Task 3's simulation-coherence audit: (1) mutual information, to
+check whether Spearman's rank correlation is missing non-monotonic
+structure; (2) subgroup/interaction analysis, to check whether a pairwise
+correlation changes materially within income/province/household-size/age
+subgroups; (3) joint-dependence trios, to check whether a pairwise result
+is actually driven by a third variable invisible to a pairwise test. Full
+code in `notebooks/part2_task5_mi_subgroup_joint.ipynb`.
+
+**Data source and a methodological correction made before running anything:**
+the 16 new pairs below use `data/all417/arima_200k_all417_decoded.parquet`
+(200K rows, 2024H2 vintage, ~380 VV_ tables spanning every domain). Its `id`
+was verified this session to link *directly* (no offset) to `CA_2024H2`'s
+own tables — a 20,000-id sample joined on raw `id` against `CA_2024H2/VV_DEM`
+produced a perfect gender bijection, the same attribute-spot-check standard
+used everywhere else in this project. Because this file is 2024H2-vintage,
+every variable was decoded/labeled using `CA_2024H2`'s own dictionary, not
+`variable_mapping_2026.csv` — this caught real problems before they became
+errors: `vv_ele`, `vv_inv`, `vv_wor` (as "days worked"), `vv_med` (as
+"conditions"), and `vv_buu` (as "business trips") all looked like clean
+candidate variables under their 2026 table names but hold unrelated content
+in the 2024H2 dictionary (e.g. `vv_ele` is TV-set ownership in 2024H2, not
+electric-vehicle intent), consistent with CLAUDE.md's standing finding that
+39% of table_ids have drifted content across vintages. They were dropped
+from the candidate list rather than mis-decoded. Separately, `VV_DEM_4`
+("# of Household Income Contributors") was initially assumed to be
+household size; `VV_HOV_7` ("Total # of people in hhld") is the actual
+household-size variable and is what's used below.
+
+### F1 — Mutual information
+
+Two anchors (Task 2's `vv_aut_1` × `owns_any_vehicle`, r=0.0141, n=33,596,974;
+Task 3's `VV_AUU_1` × `owns_any_car`, r=0.0079, n=177,214) were rebuilt from
+their original sources to compute normalized mutual information (NMI,
+`sklearn.metrics.normalized_mutual_info_score` on integer-factorized
+category codes) alongside their known Spearman r, giving a **near-independence
+NMI baseline of ~0.0001–0.0002**. 16 new pairs were then tested, at least one
+per domain named in the request (food/drinks, lifestyle, health/wellness,
+professional life, shopping, media, auto, travel, digital), chosen the same
+way as Task 2's original pairs (obvious expected direction from the variable
+descriptions).
+
+| # | Pair | Domain | n | Spearman r | Expected | NMI | Status |
+|---|---|---|---|---|---|---|---|
+| F1.1 | `VV_ORG_1` (organic food, hhld) × `VV_VIT_1` (vitamins) | food_drink × health | 179,686 | -0.0114 | + | 0.0001 | **FAIL — wrong direction** |
+| F1.2 | `VV_DIE_1` (control diet) × `VV_VEG_1` (vegan products) | food_drink × health | 175,861 | 0.0140 | + | 0.0002 | WARNING (low magnitude) |
+| F1.3 | `VV_FIT_1` (fitness club member) × `VV_DIE_1` (control diet) | lifestyle × health | 199,993 | 0.0132 | + | 0.0002 | WARNING (low magnitude) |
+| F1.4 | `VV_FIT_1` (fitness club member) × `VV_SMO_1` (smoked, last 6mo) | lifestyle × health | 194,705 | 0.0091 | − | 0.0001 | **FAIL — wrong direction** |
+| F1.5 | `VV_TOT_1` (investment $ bracket) × `VV_ORG_1` (organic food) | professional_life × shopping | 151,731 | -0.0345 | + | 0.0005 | **FAIL — wrong direction** |
+| F1.6 | `VV_ADI_1` (searched online after ad) × `VV_SHP_2` (online shopping freq.) | media × shopping | 133,940 | -0.0087 | + | 0.0001 | **FAIL — wrong direction** |
+| F1.7 | `VV_TRU_1` (news-checking freq.) × `VV_DIG_11` (internet = main news source) | media × digital | 138,722 | **-0.0930** | + | **0.0039** | **FAIL — wrong direction, non-trivial magnitude (see below)** |
+| F1.8 | `VV_ADB_1` (ad blocker) × `VV_BIN_1` (binge-watch freq.) | digital × media/lifestyle | 128,801 | 0.0102 | + | 0.0001 | WARNING (low magnitude) |
+| F1.9 | `VV_AUT_1` (vehicle purchase, past 12mo) × `VV_DEM_3` (income) | auto × demographics | 164,248 | -0.0183 | + | 0.0002 | **FAIL — wrong direction** |
+| F1.10 | `VV_TRB_1` (vacation trip, past 12mo) × `VV_DEM_3` (income) | travel × demographics | 200,000 | 0.0232 | + | 0.0003 | WARNING (low magnitude) |
+| F1.11 | `VV_VAC_1` (vacation trip, past 12mo) × `VV_RES_1` (dined out, past 30d) | travel × lifestyle | 199,992 | 0.0063 | + | 0.0000 | WARNING (low magnitude) |
+| F1.12 | `VV_LOT_1` (bought lottery ticket) × `VV_DEM_3` (income) | shopping × demographics | 197,112 | 0.0012 | − | 0.0003 | **FAIL — wrong direction (trivial magnitude)** |
+| F1.13 | Employed (`VV_WOR_1`) × `VV_MOT_2` (career-orientation) | professional_life × media/attitude | 199,223 | **0.0636** | + | **0.0047** | **PASS (weak) — strongest new pair** |
+| F1.14 | `VV_POD_13` (health/fitness podcast) × `VV_FIT_1` (fitness club) | media × health | 199,995 | 0.0137 | + | 0.0002 | WARNING (low magnitude) |
+| F1.15 | `VV_SHP_2` (online shopping freq.) × `VV_ADB_1` (ad blocker) | shopping × digital | 133,494 | 0.0025 | + | 0.0000 | WARNING (low magnitude) |
+| F1.16 | `VV_TRB_1` (vacation trip) × `VV_LUX_2` ("worth paying extra for quality") | lifestyle/travel × shopping-attitude | 199,993 | 0.0008 | + | 0.0001 | WARNING (low magnitude) |
+
+**Observed:** 14/16 new pairs (87.5%) are flagged (wrong-signed or
+low-magnitude), replicating Task 2's original 71% (17/24) and Task 3's
+finding, now demonstrated across professional life, shopping, media, auto,
+travel, and digital — domains Task 2/3 had not directly tested. Only two
+pairs (F1.7, F1.13) have non-trivial NMI, and both are also the two pairs
+with the largest raw |r| — **MI and Spearman agree throughout on which pairs
+have real structure; MI did not rescue any pair Spearman called near-zero.**
+
+**F1.7 deserves a closer look, and it's genuinely interesting:** a crosstab
+of `VV_TRU_1` against `VV_DIG_11` (Fig. `task5_dig11_tru1_nonmonotonic.png`)
+shows a **hump-shaped, non-monotonic** relationship — both people who never
+follow the news and people who check daily show *lower* agreement that "the
+internet is my main news source" (22.1% and 18.5% "Completely Agree") than
+people in the middle of the frequency scale (~26% at rank 3-4). Spearman's
+r=-0.093 is driven by the high end and mischaracterizes this as a simple
+downward trend. **Assumption/verification:** this was checked against the
+MI-is-a-finite-sample-biased-upward-estimator concern by inspecting the
+full crosstab, not just the summary statistic — the pattern is a smooth,
+interpretable hump across all 7 categories at n=138,722, not a single noisy
+category, so it reads as genuine structure, not an artifact. By contrast,
+F1.13 and the wrong-signed F1.5 (also inspected via crosstab) are both
+**cleanly monotonic** — real relationships Spearman already measures
+correctly, so their elevated NMI corroborates rather than reveals anything.
+
+### F2 — Subgroup / interaction analysis
+
+8 pairs (both anchors on the demographic fields their own source supports —
+age only for Task 2's anchor; province and age for Task 3's anchor — plus 6
+of the F1 pairs spanning the widest range of domains/outcomes: F1.13, F1.7,
+F1.5, F1.4, F1.10, F1.12) checked across income tercile, province (top 6 by
+n, else grouped), household size (`VV_HOV_7`: 1 / 2 / 3+), and age band
+(<35 / 35-54 / 55+). A subgroup is flagged if |Δr| > 0.10 vs. the overall r,
+or if it reverses sign (with both r's required to exceed 0.02 to avoid
+flagging noise around zero); n≥1,000 required per subgroup.
+
+**Observed:** zero of the 6 new pairs × 4 dimensions (24 checks) crossed the
+formal |Δr| > 0.10 threshold — full detail (all 24 × subgroup-level rows) is
+in the notebook. The near-zero (or modest) cross-domain relationships found
+in F1 are not masking a strong subgroup-specific effect hiding underneath an
+averaged-out null; this pattern is fairly uniform across income, province,
+household size, and age. Both anchors showed the same pattern on their
+available dimensions (no material subgroup differences from their ~0.008–0.014
+overall r).
+
+The largest deltas, while under the formal threshold, are still informative:
+F1.7 (`VV_TRU_1` × `VV_DIG_11`) swings from r=-0.093 overall to essentially
+flat within every age band (-0.0007 to -0.0205) — the closest thing to a
+real subgroup effect found here. Rather than over-claim this as a "flagged"
+result under the pre-registered cutoff, it's followed up properly as a
+joint-dependence trio below (F3.6).
+
+### F3 — Joint-dependence (3+ variables)
+
+7 trios spanning food/drink × lifestyle × health, professional life ×
+shopping, media × shopping, auto × environment × demographics, travel ×
+professional life × demographics, media × digital × age (F3.6, chosen
+*because* F2 surfaced it — not picked in advance), and shopping × digital ×
+media. **Method (assumption made explicit):** the standard first-order
+partial-correlation formula, `r_AB|C = (r_AB − r_AC·r_BC) / √((1−r_AC²)(1−r_BC²))`,
+applied to Spearman correlations — an approximation valid to the extent the
+rank-transformed relationships are approximately linear. Every result below
+is corroborated independently by recomputing A×B's Spearman r within each
+tercile of C.
+
+| # | Trio (A × B \| C) | Domain | n | r(A,B) raw | r(A,B\|C) partial | Conclusion |
+|---|---|---|---|---|---|---|
+| F3.1 | `VV_ORG_1` × `VV_FIT_1` \| `VV_DIE_1` | food_drink × lifestyle × health | 179,685 | 0.0234 | 0.0233 | No material change — not confounded by diet control |
+| F3.2 | `VV_TOT_1` × `VV_ORG_1` \| income | professional_life × shopping | 151,731 | -0.0345 | -0.0338 | No material change — not explained by income |
+| F3.3 | `VV_ADI_1` × `VV_SHP_2` \| `VV_DIG_11` | media × shopping | 133,496 | -0.0088 | -0.0082 | No material change — not explained by digital engagement |
+| F3.4 | `VV_AUT_1` × `VV_ENV_2` \| income | auto × environment × demographics | 164,248 | -0.0035 | -0.0036 | No material change |
+| F3.5 | `VV_TRB_1` × employed \| income | travel × professional_life × demographics | 199,228 | 0.0326 | 0.0299 | No material change |
+| F3.6 | `VV_TRU_1` × `VV_DIG_11` \| age | media × digital × age | 138,722 | **-0.0930** | **-0.0028** | **Confound confirmed — age composition drives the pooled result (~97% reduction)** |
+| F3.7 | `VV_SHP_2` × `VV_ADB_1` \| `VV_BIN_1` | shopping × digital × media | 86,498 | 0.0001 | 0.0003 | No material change |
+
+**Observed:** 1 of 7 trios (F3.6) shows real joint structure a pairwise test
+would miss. The raw r=-0.093 collapses to a partial correlation of -0.0028
+(~97% reduction) once age is controlled for, and the tercile-stratified
+check agrees independently — within the youngest age tercile the correlation
+is essentially exactly zero (-0.0005, n=55,545). **Age composition, not a
+direct link between news-checking frequency and internet-as-news-source
+agreement, produces the pooled correlation** — a Simpson's-paradox-style
+confound, the clearest example in this follow-up of a relationship that
+looks real pairwise but isn't. The other 6 trios show no material difference
+between the raw and partial correlations — the hypothesized third-variable
+explanations do not explain away F1's near-zero pairwise results; those
+results were not simply hiding structure a trio analysis would reveal.
+
+### Conclusion — does this support or complicate the "generation artifact" hypothesis?
+
+These three follow-ups **support, and sharpen, the generation-artifact
+reading rather than complicating it.** If ARIMA's near-zero cross-domain
+correlations were principally a *measurement* artifact — Spearman missing
+non-monotonic structure, or a pooled-subgroup average masking real
+within-group effects — this follow-up's three purpose-built methods should
+have surfaced that structure somewhere across 18 MI pairs, 24 subgroup
+checks, and 7 trios. They found exactly one such case (F3.6's age confound),
+and it explains a relationship *away* rather than resurrecting one — a
+demographic-composition effect, consistent with CLAUDE.md's standing finding
+that ARIMA preserves **demographic-driven gradients** reasonably well while
+cross-domain **attitude/behavior links collapse toward independence**. The
+one non-monotonic pattern confirmed as genuine here (F1.7's news-checking
+hump) is itself demographic in origin (age-driven, per F3.6), not evidence
+of the richer cross-domain dependency structure the generation-artifact
+hypothesis says is missing.
+
+**This does not resolve the open question** — it cannot distinguish "real
+population feature" from "synthesis artifact" any more than Task 2/3 could —
+but it **does rule out one specific alternative explanation**: that better
+statistics (MI instead of Spearman, subgroup-aware analysis, joint-dependence
+testing) would have found the missing structure. They did not, across a much
+wider span of domains than previously tested. That narrows the open question
+rather than complicating it.
+
+No fixes applied to the underlying data anywhere in this scorecard — every
+row reports an observed result, not a correction.

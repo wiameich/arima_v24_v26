@@ -18,12 +18,25 @@
 > checked mapping before any 2026 cutover — it cannot be fixed by a simple
 > find-and-replace, because the renaming isn't a clean one-to-one swap.
 > Full detail and the table-by-table evidence is in Part 1.1 below.
+>
+> **Correction (2026-09-24): make that 2 of the 10, not 3.** `vv_res` was
+> the only one of the "safe" 3 that hadn't been checked below the
+> table-content level. It's not safe: Part 1.3 found all 39 of its
+> variables have a different response scale in 2026, and the Part 1.1
+> variable-level extension below independently found all 39 are also
+> internally reshuffled to different `var_id` numbers — same content
+> overall (why it passed the table-level check), but no individual
+> variable still means what it used to. Only `vv_dem` and `vv_lux` are
+> verified safe as-is.
 
-Status: **Parts 1.2 (ID continuity), 1.1 (schema diff), 1.4 (variable
-mapping diff), and 1.3 (distribution shifts) complete.** Per the project's
-sequencing, ID continuity gated interpretation of everything downstream and
-was addressed first; distribution shifts (1.3) were addressed last since
-they build on 1.1's per-table stability check.
+Status: **Parts 1.2 (ID continuity), 1.1 (schema diff, plus its
+variable-level description-diff extension), 1.4 (variable mapping diff),
+and 1.3 (distribution shifts) complete.** Per the project's sequencing, ID
+continuity gated interpretation of everything downstream and was addressed
+first; distribution shifts (1.3) were addressed last since they build on
+1.1's per-table stability check. The Part 1.1 extension (variable-level
+description diff across all 5,674 shared variables) was added afterward and
+revised the "3 safe tables" claim above.
 
 ## Data sources used
 
@@ -454,6 +467,154 @@ content-mapping problem, not an identifier problem.
   1-2-variable table is materially weaker evidence than one from a
   20-variable table, and this was not resolved by running the search
   exhaustively — only by scoring more tables the same, imperfect way.
+
+## Part 1.1 (extension) — Variable-level description diff for the 5,674 shared `var_id`s
+
+Notebook: `notebooks/part1_1b_variable_description_diff.ipynb`. Cached
+result: `data/part1_var_description_diff.csv`.
+
+### Scope
+
+Part 1.1 checked content stability at the *table* level: for each shared
+`table_id`, is the set of variable descriptions used in 2024H2 identical to
+the set used in 2026 (Jaccard similarity)? Part 1.4 separately established
+that 5,674 `var_id`s are present under the same name in both dictionaries,
+but did not compare their description text. This extension does that
+directly: a one-row-per-`var_id` text comparison across the **full**
+5,674-variable shared set (not a sample), reusing Part 1.4's cached
+`shared_vars` set and Part 1.1's cached per-table Jaccard scores rather
+than recomputing either.
+
+**Assumption verified before use:** `description` is constant per `var_id`
+across all of its category rows in both dictionaries (0 exceptions in
+11,878 2024H2 var_ids, 0 in 10,943 2026 var_ids) — a direct per-var_id
+string comparison is therefore well-defined.
+
+### Methodology
+
+Each shared `var_id`'s 2024H2 and 2026 description strings are compared and
+bucketed: **IDENTICAL** (byte-identical), **COSMETIC_ONLY** (identical
+after normalizing whitespace/case/punctuation), **REWORDED**
+(`difflib.SequenceMatcher` ratio on normalized text ≥ 0.7 — same question,
+different words), or **CHANGED** (ratio < 0.7 — little to no textual
+overlap). The 0.7 cutoff is a convention for this notebook, chosen by
+inspecting boundary examples, not a validated domain threshold. Each
+`var_id` is also tagged with its table's Part 1.1 class: **STABLE**
+(table-level Jaccard = 1.000, 135 tables), **UNSTABLE** (Jaccard = 0.0, 130
+tables), or **OTHER** (partial overlap, 67 tables).
+
+### Observed results — headline numbers
+
+| Status | n | % of 5,674 |
+|---|---|---|
+| IDENTICAL | 1,009 | 17.8% |
+| COSMETIC_ONLY | 1 | 0.02% |
+| REWORDED | 1,284 | 22.6% |
+| CHANGED | 3,380 | 59.6% |
+
+Only **17.8%** of shared `var_id`s have a byte-identical description in
+both dictionaries; **59.6%** differ enough in wording to represent a
+different question in substance, not a rewrite of the same one.
+
+| Status | OTHER tables | STABLE tables | UNSTABLE tables |
+|---|---|---|---|
+| IDENTICAL | 69 | 940 | 0 |
+| COSMETIC_ONLY | 0 | 0 | 1 |
+| REWORDED | 659 | 460 | 165 |
+| CHANGED | 1,193 | 487 | 1,700 |
+
+As expected, `UNSTABLE` tables contribute **zero** `IDENTICAL` variables
+(1,700/1,865 shared vars in these tables are outright `CHANGED`) — a
+variable-level confirmation of Part 1.1's table-level finding, not a new
+result on its own.
+
+### New finding: reshuffled `var_id`s inside tables Part 1.1 called "stable"
+
+The `STABLE` column is the new result: **947 of 1,887 shared vars (50.2%)
+in tables Part 1.1 confirmed at table-level Jaccard = 1.000 are not
+`IDENTICAL` at the variable level.** Investigated directly rather than
+left as a paradox: for all 947, the 2024H2 description also appears
+*somewhere else in the same 2026 table*, under a different `var_id` number
+(and vice versa, 100% both directions). **This is a 100% internal
+reshuffle, not vanished or new content** — the table's overall content is
+unchanged (hence Part 1.1's 1.000 score), but the specific `var_id` number
+no longer points at the same question.
+
+Concrete example (`vv_mov`, all 33/33 variables reshuffled): `vv_mov_6` =
+"Went Last Time - In Past 2 Months" in 2024H2, but = "Type(s) Of Movies
+Attended - Any - Family/Children Oriented" in 2026 — a different question
+entirely, even though the set of 33 descriptions used across `vv_mov` is
+identical between vintages.
+
+**Table-level impact:** of the 135 `STABLE` tables, **56 (41.5%) have at
+least one internally reshuffled variable**; in the worst-affected tables
+every shared variable is reshuffled:
+
+| Table | Shared vars checked | Identical | Reshuffled |
+|---|---|---|---|
+| `vv_nau` | 97 | 21 | 76 |
+| `vv_win` | 77 | 6 | 71 |
+| `vv_fur` | 62 | 0 | **62 (100%)** |
+| `vv_tve` | 60 | 0 | **60 (100%)** |
+| `vv_gar` | 47 | 7 | 40 |
+| `vv_res` | 39 | 0 | **39 (100%)** |
+| `vv_mov` | 33 | 0 | **33 (100%)** |
+| `vv_vid` | 32 | 0 | **32 (100%)** |
+
+**`vv_res` is doubly broken:** Part 1.3 already found all 39/39 `vv_res`
+variables fail the response-scale (`categories_match`) check; this
+extension now shows those same 39 variables are *also* 100% reshuffled at
+the description level. `vv_res` passes Part 1.1's table-level content
+check yet fails both later, more granular checks completely — see the
+correction added to `CLAUDE.md`'s fusion-pipeline-impact note (2026-09-24).
+
+**Sanity check in the other direction:** `vv_dem` (20/20 identical) and
+`vv_lux` (15/15 identical) — the two other tables CLAUDE.md previously
+called "stable" for the fusion pipeline — are confirmed genuinely fully
+aligned at the variable level, verified directly rather than assumed.
+
+### Why Part 1.1 and Part 1.3 each miss this
+
+- **Part 1.1** (table-level, bag-of-descriptions Jaccard) is blind to this
+  by construction: it only asks whether a table's total *set* of content
+  changed, never whether that content stayed attached to the same `var_id`
+  numbers.
+- **Part 1.3** (variable-level response-scale/category-structure
+  stability) checks a different, independent property. It would not catch
+  a reshuffle where the swapped variables happen to share the same category
+  structure (e.g. two Yes/No items trading places) even though the
+  underlying question changed.
+
+### Methodological assumptions
+
+- The 0.7 REWORDED/CHANGED cutoff is a convention, not a validated
+  threshold; a different cutoff moves variables between REWORDED and
+  CHANGED but does not affect the reshuffle finding, which rests on exact
+  string set-membership, not the similarity score.
+- Reshuffle verification uses set membership within a `table_id`, not
+  multiplicity — a table with a duplicate description used by more than
+  one `var_id` in one vintage would still be called a "reshuffle" even if
+  the true one-to-one correspondence is ambiguous. Not separately checked;
+  none of the tables named above showed within-vintage duplicate
+  descriptions on inspection.
+
+### Conclusion
+
+Part 1.1's table-level content check and Part 1.3's variable-level
+response-scale check are each necessary but **neither is sufficient** to
+certify that a specific `var_id` means the same thing across the vintage
+change. This extension adds a third, independent failure mode: **a
+`var_id` that "exists" under the same name in a table Part 1.1 confirmed
+fully content-stable can still point at a different question entirely** —
+true for 41.5% of stable tables, and for every variable in the
+worst-affected ones. Only 17.8% of all 5,674 shared `var_id`s have an
+unchanged description; 59.6% differ enough to represent a different
+question. Any process that references a 2024-vintage `var_id` against 2026
+data — this project's fusion pipeline included — cannot treat "the
+`var_id` string is unchanged," or even "the table already passed Part
+1.1's content check," as evidence that a specific variable is safe to
+carry across vintages. Only a direct check of that variable's own
+description text, done exhaustively here rather than on a sample, holds up.
 
 ## Part 1.4 — Variable mapping diff (2024H2 vs. 2026)
 

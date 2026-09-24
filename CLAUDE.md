@@ -212,6 +212,22 @@ row identity; this one is about what a table/variable *means*).
   `vv_hon`, `vv_lif`, `vv_auu`, `vv_fio`) and 1 (`vv_shr`) was removed
   entirely. See `outputs/part1_vintage_comparison.md` Part 1.1 for the full
   table and methodology.
+- **Correction (2026-09-24): `vv_res` is not actually safe, despite passing
+  this table-level check.** Two independent, later checks both fail it: Part
+  1.3 found all 39/39 of its variables have a different category/response
+  structure across vintages (a 2024H2 4-category scale collapsing to a
+  2026 3-category one), and the Part 1.1 variable-level description-diff
+  extension (`outputs/part1_vintage_comparison.md`, "Part 1.1 (extension)")
+  found all 39/39 of its variables are also internally **reshuffled** —
+  same overall set of 39 descriptions in both vintages (hence the 1.000
+  table-level score above), but each `var_id` number points at a different
+  one of those 39 questions in 2026 than it did in 2024H2. Table-level
+  description-set stability (this bullet's original claim) does **not**
+  imply a table is safe to reference by `var_id` — it only means the
+  table's total content didn't change, not that any specific variable
+  kept its meaning. Effectively **2 of the 10** hardcoded tables
+  (`vv_dem`, `vv_lux`) are verified safe as-is; `vv_res` needs the same
+  explicit remapping treatment as the 6 already-known-unstable tables.
 - **Conclusion:** any 2024→2026 vintage switch needs an explicit, verified
   table/variable remapping step. Do not assume a `table_id`/`var_id` string
   carries the same meaning across vintages just because the string itself
